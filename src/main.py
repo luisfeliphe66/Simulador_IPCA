@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from pdf_export import gerar_pdf  # Importa a função de geração de PDF
+from app.src.pdf_export import gerar_pdf  # Importa a função de geração de PDF
 
 # Carregar dados do CSV
 data = pd.read_csv('data/base.csv')
