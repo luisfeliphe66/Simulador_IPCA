@@ -16,11 +16,21 @@ volumes:
   ingestion-volume-tmp:
   es-data:
 services:
+  # set-permissions:
+  #   image: alpine:latest
+  #   container_name: set_permissions
+  #   command: ["sh", "-c", "mkdir -p /var/lib/mysql && chmod -R 777 /var/lib/mysql"]
+  #   volumes:
+  #     - ../docker-volume/db-data:/var/lib/mysql
+  #   networks:
+  #     - openmetadata_network
+  #   restart: "no"
+
   mysql:
     container_name: openmetadata_mysql
     image: docker.getcollate.io/openmetadata/db:1.5.6
     command: "--sort_buffer_size=10M"
-    restart: always
+    # restart: always
     environment:
       MYSQL_ROOT_PASSWORD: password
     expose:
@@ -28,12 +38,16 @@ services:
     ports:
       - "3306:3306"
     volumes:
-     - ../docker-volume/db-data:/var/lib/mysql
+     - ../docker-volume/db-data:/var/lib/mysql:rw
     #  - ./app/scripts/mysql-init:/docker-entrypoint-initdb.d
+    # depends_on:
+    #   set-permissions:
+    #     condition: service_completed_successfully
     networks:
       - openmetadata_network
     healthcheck:
       test: mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --silent --execute "use openmetadata_db"
+      # test: ["CMD-SHELL", "mysqladmin ping -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -531,7 +545,8 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.init_mysql
     depends_on:
-      - mysql
+      mysql:
+        condition: service_completed_successfully
     environment:
       MYSQL_ROOT_PASSWORD: password
     volumes:
@@ -541,19 +556,19 @@ services:
       - openmetadata_network
     restart: "no"
 
-  simuladoripca-create-connector:
-    container_name: simuladoripca_create_connector
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.create_connector
-    depends_on:
-      - openmetadata-server
-    volumes:
-      - ../config/connector:/etc/openmetadata/connectors
-    # command: /usr/local/bin/create_connector.sh
-    networks:
-      - openmetadata_network
-    restart: "no"
+  # simuladoripca-create-connector:
+  #   container_name: simuladoripca_create_connector
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile.create_connector
+  #   depends_on:
+  #     - openmetadata-server
+  #   volumes:
+  #     - ../config/connector:/etc/openmetadata/connectors
+  #   # command: /usr/local/bin/create_connector.sh
+  #   networks:
+  #     - openmetadata_network
+  #   restart: "no"
   
 
   # simuladoripca-init-bacen:

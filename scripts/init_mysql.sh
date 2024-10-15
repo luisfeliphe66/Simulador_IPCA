@@ -3,10 +3,10 @@
 echo "Iniciando script de criação de tabelas."
 
 # Esperar o MySQL estar pronto para conexões
-while ! mysql -h "mysql" -u root -p"$MYSQL_ROOT_PASSWORD" -e "SHOW DATABASES;" > /dev/null 2>&1; do
-  echo "Aguardando MySQL..."
-  sleep 3
-done
+# while ! mysql -h "mysql" -u root -p"$MYSQL_ROOT_PASSWORD" -e "SHOW DATABASES;" > /dev/null 2>&1; do
+#   echo "Aguardando MySQL..."
+#   sleep 3
+# done
 
 echo "MySQL está pronto para conexões. Criando tabela..."
 
