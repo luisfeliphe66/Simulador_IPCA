@@ -10,5 +10,15 @@ deploy:
 down:
 	docker-compose -f docker-compose.yml down -v
 
+#OPENMETADATA
+#http://0.0.0.0:8585/
 #Username: admin@open-metadata.org
 #Password: admin
+
+# AIRFLOW
+#http://localhost:8080/
+#Username: admin
+#Password: admin
+
+#IPCA
+#http://0.0.0.0:8501/
