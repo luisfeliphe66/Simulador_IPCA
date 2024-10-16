@@ -29,6 +29,7 @@ services:
       - 3307
     volumes:
       - /home/luisfeliphe/projetos/Simulador_IPCA/docker/dormir:/docker-entrypoint-initdb.d
+      - /home/luisfeliphe/projetos/Simulador_IPCA/docker/my.cnf:/etc/mysql/my.cnf
     networks:
       - app_net
     ports:

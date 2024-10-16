@@ -5,3 +5,6 @@ deploy:
 
 down:
 	docker-compose -f docker/docker-compose.yml down -v
+
+#Username: admin@open-metadata.org
+#Password: admin
