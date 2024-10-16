@@ -1,0 +1,20 @@
+source:
+  type: mysql
+  serviceName: your_mysql_service_name
+  serviceConnection:
+    config:
+      username: your_username
+      password: your_password
+      hostPort: your_host:your_port
+  database: your_database_name
+
+processor:
+  type: metadata
+  config: {}
+
+sink:
+  type: metadata-rest
+  config: {}
+
+workflowConfig:
+  scheduleInterval: "1 day"  # Ajuste conforme necessário
