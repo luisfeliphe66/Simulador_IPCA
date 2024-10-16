@@ -15,22 +15,30 @@ volumes:
   ingestion-volume-dags:
   ingestion-volume-tmp:
   es-data:
+  mysql_data:
 services:
-  # set-permissions:
-  #   image: alpine:latest
-  #   container_name: set_permissions
-  #   command: ["sh", "-c", "mkdir -p /var/lib/mysql && chmod -R 777 /var/lib/mysql"]
-  #   volumes:
-  #     - ../docker-volume/db-data:/var/lib/mysql
-  #   networks:
-  #     - openmetadata_network
-  #   restart: "no"
+  db-mysql:
+    image: mysql:8.0
+    container_name: my_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      # MYSQL_DATABASE: mydatabase  # Opcional: Cria o banco de dados se o init.sql não o fizer
+      MYSQL_USER: myuser           # Opcional: Cria um usuário adicional
+      MYSQL_PASSWORD: mypassword   # Opcional: Define a senha do usuário
+    expose:
+      - 3307
+    volumes:
+      - /home/luisfeliphe/projetos/Simulador_IPCA/docker/dormir:/docker-entrypoint-initdb.d
+    networks:
+      - app_net
+    ports:
+      - "3307:3306"
 
   mysql:
     container_name: openmetadata_mysql
     image: docker.getcollate.io/openmetadata/db:1.5.6
     command: "--sort_buffer_size=10M"
-    # restart: always
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: password
     expose:
@@ -38,16 +46,11 @@ services:
     ports:
       - "3306:3306"
     volumes:
-     - ../docker-volume/db-data:/var/lib/mysql:rw
-    #  - ./app/scripts/mysql-init:/docker-entrypoint-initdb.d
-    # depends_on:
-    #   set-permissions:
-    #     condition: service_completed_successfully
+     - mysql_data:/var/lib/mysql
     networks:
-      - openmetadata_network
+      - app_net
     healthcheck:
       test: mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --silent --execute "use openmetadata_db"
-      # test: ["CMD-SHELL", "mysqladmin ping -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -60,7 +63,7 @@ services:
       - ES_JAVA_OPTS=-Xms1024m -Xmx1024m
       - xpack.security.enabled=false
     networks:
-      - openmetadata_network
+      - app_net
     ports:
       - "9200:9200"
       - "9300:9300"
@@ -283,7 +286,7 @@ services:
       mysql:
         condition: service_healthy
     networks:
-      - openmetadata_network
+      - app_net
 
   openmetadata-server:
     container_name: openmetadata_server
@@ -491,7 +494,7 @@ services:
       execute-migrate-all:
         condition: service_completed_successfully
     networks:
-      - openmetadata_network
+      - app_net
     healthcheck:
       test: [ "CMD", "wget", "-q", "--spider",  "http://localhost:8586/healthcheck" ]
 
@@ -531,77 +534,18 @@ services:
     expose:
       - 8080
     ports:
-      - "8081:8080"
+      - "8080:8080"
     networks:
-      - openmetadata_network
+      - app_net
     volumes:
       - ingestion-volume-dag-airflow:/opt/airflow/dag_generated_configs
       - ingestion-volume-dags:/opt/airflow/dags
       - ingestion-volume-tmp:/tmp
 
-  simuladoripca-copy-dags:
-    image: alpine:latest
-    # image: docker.getcollate.io/openmetadata/ingestion:1.5.6
-    container_name: simuladoripca_copy_dags
-    command: ["sh", "-c", "cp -r /src/dags/* /opt/airflow/dags/ && cp -r /data/* /opt/airflow/dags/"]
-    volumes:
-      - ../src:/src
-      - ../data:/data
-      - ingestion-volume-dags:/opt/airflow/dags
-    depends_on:
-      ingestion:
-        condition: service_started #service_completed_successfully
-    networks:
-      - openmetadata_network
 
-  simuladoripca-init-mysql:
-    container_name: simuladoripca_init_mysql
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.init_mysql
-    depends_on:
-      mysql:
-        condition: service_completed_successfully
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-    volumes:
-      - ../docker-volume/db-data:/var/lib/mysql
-      - ../scripts/mysql:/var/scripts/mysql
-    networks:
-      - openmetadata_network
-    restart: "no"
-
-  # simuladoripca-create-connector:
-  #   container_name: simuladoripca_create_connector
-  #   build:
-  #     context: ..
-  #     dockerfile: docker/Dockerfile.create_connector
-  #   depends_on:
-  #     - openmetadata-server
-  #   volumes:
-  #     - ../config/connector:/etc/openmetadata/connectors
-  #   # command: /usr/local/bin/create_connector.sh
-  #   networks:
-  #     - openmetadata_network
-  #   restart: "no"
-  
-
-  # simuladoripca-init-bacen:
-  #   container_name: simuladoripca_init_bacen
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.init_bacen
-  #   depends_on:
-  #     - simuladoripca-init-mysql
-  #   command: "python bacen.py"
-  #   restart: "no"
-  #   networks:
-  #     - openmetadata_network
-    
 networks:
-  openmetadata_network:
-    driver: bridge
-    # ipam:
-    #   driver: default
-    #   config:
-    #     - subnet: "172.16.240.0/24"
+  app_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.16.240.0/24"
