@@ -539,6 +539,21 @@ services:
       - ingestion-volume-dags:/opt/airflow/dags
       - ingestion-volume-tmp:/tmp
 
+  simuladoripca-copy-dags:
+    image: alpine:latest
+    # image: docker.getcollate.io/openmetadata/ingestion:1.5.6
+    container_name: simuladoripca_copy_dags
+    command: ["sh", "-c", "cp -r /src/dags/* /opt/airflow/dags/ && cp -r /data/* /opt/airflow/dags/"]
+    volumes:
+      - ../src:/src
+      - ../data:/data
+      - ingestion-volume-dags:/opt/airflow/dags
+    depends_on:
+      ingestion:
+        condition: service_started #service_completed_successfully
+    networks:
+      - openmetadata_network
+
   simuladoripca-init-mysql:
     container_name: simuladoripca_init_mysql
     build:
