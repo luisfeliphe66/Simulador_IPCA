@@ -1,7 +1,0 @@
-requests
-mysql-connector-python
-# json
-# streamlit
-# pandas
-# fpdf
-# reportlab
