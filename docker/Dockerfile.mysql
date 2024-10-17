@@ -1,0 +1,32 @@
+# dump build stage
+FROM mysql:8.0.32 AS simuladoripca-mysql-dumper
+
+# Definir variáveis de ambiente para o MySQL
+ENV MYSQL_ROOT_PASSWORD=password
+ENV MYSQL_DATABASE=mydb
+ENV MYSQL_USER=admin
+ENV MYSQL_PASSWORD=admin
+
+# Copiar script de automação
+COPY ../scripts/mysql/init.sql /docker-entrypoint-initdb.d/init.sql
+
+# Substituir exec "$@" para não iniciar o servidor
+RUN ["sed", "-i", "s/exec \"$@\"/echo \"skipping...\"/", "/usr/local/bin/docker-entrypoint.sh"]
+
+# Executar o script de inicialização para configurar o banco de dados. Inicializar MySQL para executar scripts
+RUN ["docker-entrypoint.sh", "mysqld"]
+
+# final build stage
+FROM mysql:8.0.32 AS simuladoripca-mysql
+
+ENV MYSQL_ROOT_PASSWORD=password
+ENV MYSQL_DATABASE=mydb
+ENV MYSQL_USER=admin
+ENV MYSQL_PASSWORD=admin
+
+COPY --from=simuladoripca-mysql-dumper /var/lib/mysql /var/lib/mysql
+
+# Definir o entrypoint e comando padrão
+# ENTRYPOINT ["docker-entrypoint.sh"]
+# CMD ["mysqld"]
+

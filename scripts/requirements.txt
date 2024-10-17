@@ -1,7 +1,7 @@
 requests
 mysql-connector-python
 # json
-# streamlit
-# pandas
-# fpdf
-# reportlab
+streamlit
+pandas
+fpdf
+reportlab

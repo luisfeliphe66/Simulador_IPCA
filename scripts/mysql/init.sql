@@ -15,11 +15,11 @@ CREATE TABLE IF NOT EXISTS indicador_economico (
     indicador VARCHAR(50) NOT NULL,
     data DATE NOT NULL,
     suavizada VARCHAR(1) NOT NULL,
-    media DECIMAL(5,4) NOT NULL,
-    mediana DECIMAL(5,4) NOT NULL,
-    desvio_padrao DECIMAL(5,4) NOT NULL,
-    minimo DECIMAL(5,4) NOT NULL,
-    maximo DECIMAL(5,4) NOT NULL,
+    media DECIMAL(10,5) NOT NULL,
+    mediana DECIMAL(10,5) NOT NULL,
+    desvio_padrao DECIMAL(10,5) NOT NULL,
+    minimo DECIMAL(10,5) NOT NULL,
+    maximo DECIMAL(10,5) NOT NULL,
     numero_respondentes INT NOT NULL,
     base_calculo INT NOT NULL
 );

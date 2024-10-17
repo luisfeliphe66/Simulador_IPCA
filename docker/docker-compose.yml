@@ -9,28 +9,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-version: "3.9"
+
 volumes:
   ingestion-volume-dag-airflow:
   ingestion-volume-dags:
   ingestion-volume-tmp:
   es-data:
+  openmetadata_mysql_data:
+  simuladoripca_mysql_data:
 services:
-  # set-permissions:
-  #   image: alpine:latest
-  #   container_name: set_permissions
-  #   command: ["sh", "-c", "mkdir -p /var/lib/mysql && chmod -R 777 /var/lib/mysql"]
-  #   volumes:
-  #     - ../docker-volume/db-data:/var/lib/mysql
-  #   networks:
-  #     - openmetadata_network
-  #   restart: "no"
-
   mysql:
     container_name: openmetadata_mysql
     image: docker.getcollate.io/openmetadata/db:1.5.6
     command: "--sort_buffer_size=10M"
-    # restart: always
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: password
     expose:
@@ -38,16 +30,11 @@ services:
     ports:
       - "3306:3306"
     volumes:
-     - ../docker-volume/db-data:/var/lib/mysql:rw
-    #  - ./app/scripts/mysql-init:/docker-entrypoint-initdb.d
-    # depends_on:
-    #   set-permissions:
-    #     condition: service_completed_successfully
+     - openmetadata_mysql_data:/var/lib/mysql
     networks:
       - openmetadata_network
     healthcheck:
       test: mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --silent --execute "use openmetadata_db"
-      # test: ["CMD-SHELL", "mysqladmin ping -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -539,37 +526,63 @@ services:
       - ingestion-volume-dags:/opt/airflow/dags
       - ingestion-volume-tmp:/tmp
 
-  simuladoripca-copy-dags:
-    image: alpine:latest
-    # image: docker.getcollate.io/openmetadata/ingestion:1.5.6
-    container_name: simuladoripca_copy_dags
-    command: ["sh", "-c", "cp -r /src/dags/* /opt/airflow/dags/ && cp -r /data/* /opt/airflow/dags/"]
-    volumes:
-      - ../src:/src
-      - ../data:/data
-      - ingestion-volume-dags:/opt/airflow/dags
-    depends_on:
-      ingestion:
-        condition: service_started #service_completed_successfully
-    networks:
-      - openmetadata_network
+  # simuladoripca-copy-dags:
+  #   image: alpine:latest
+  #   # image: docker.getcollate.io/openmetadata/ingestion:1.5.6
+  #   container_name: simuladoripca_copy_dags
+  #   command: ["sh", "-c", "cp -r /src/dags/* /opt/airflow/dags/ && cp -r /data/* /opt/airflow/dags/"]
+  #   volumes:
+  #     - ../src:/src
+  #     - ../data:/data
+  #     - ingestion-volume-dags:/opt/airflow/dags
+  #   depends_on:
+  #     ingestion:
+  #       condition: service_started #service_completed_successfully
+  #   networks:
+  #     - openmetadata_network
 
-  simuladoripca-init-mysql:
-    container_name: simuladoripca_init_mysql
+  simuladoripca-mysql:
+    container_name: simuladoripca_mysql
     build:
       context: ..
-      dockerfile: docker/Dockerfile.init_mysql
-    depends_on:
-      mysql:
-        condition: service_completed_successfully
+      dockerfile: docker/Dockerfile.mysql
     environment:
       MYSQL_ROOT_PASSWORD: password
+    expose:
+      - 3306
+    ports:
+      - "3307:3306"      
     volumes:
-      - ../docker-volume/db-data:/var/lib/mysql
-      - ../scripts/mysql:/var/scripts/mysql
+      - simuladoripca_mysql_data:/var/lib/mysql
     networks:
       - openmetadata_network
-    restart: "no"
+    restart: "always"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h simuladoripca-mysql -u root --password=$$MYSQL_ROOT_PASSWORD"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+
+  # simuladoripca-db:
+  #   container_name: simuladoripca_db
+  #   image: postgres:13
+  #   environment:
+  #       POSTGRES_DB: bacen_db
+  #       POSTGRES_USER: root
+  #       POSTGRES_PASSWORD: password
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ../scripts/postgres:/docker-entrypoint-initdb.d
+  #   # command: ["postgres", "-c", "listen_addresses='*'", "-c", "hba_file=/var/lib/postgresql/data/pg_hba.conf"]
+  #   entrypoint: ["/bin/bash", "docker-entrypoint-initdb.d/init.sh"]
+  #   # entrypoint: ["/bin/bash", "docker-entrypoint-initdb.d/init.sql"]
+  #   # entrypoint: ["sh", "/usr/local/bin/docker-entrypoint.sh"]
+  #   # command: ["sh", "-c", "for f in /docker-entrypoint-initdb.d/*; do psql -U root -d bacen_db -f $f; done"]
+  #   restart: "always"
+  #   networks:
+  #     - openmetadata_network
 
   # simuladoripca-create-connector:
   #   container_name: simuladoripca_create_connector
@@ -585,18 +598,6 @@ services:
   #     - openmetadata_network
   #   restart: "no"
   
-
-  # simuladoripca-init-bacen:
-  #   container_name: simuladoripca_init_bacen
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.init_bacen
-  #   depends_on:
-  #     - simuladoripca-init-mysql
-  #   command: "python bacen.py"
-  #   restart: "no"
-  #   networks:
-  #     - openmetadata_network
     
 networks:
   openmetadata_network:
