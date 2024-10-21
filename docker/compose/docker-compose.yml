@@ -3,35 +3,16 @@ volumes:
   ingestion-volume-dags:
   ingestion-volume-tmp:
   es-data:
-  mysql_data:
+  openmetadata_mysql_data:
 services:
-  financiamento:
-    build: .
+  streamlit:
+    container_name: streamlit
+    image: streamlit
     ports:
       - "8501:8501"
-    volumes:
-      - ./app:/app
     networks:
-      - app_net
-
-  db-mysql:
-    image: mysql:8.0
-    container_name: my_mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: my_mysql
-      MYSQL_USER: user
-      MYSQL_PASSWORD: mypassword
-    expose:
-      - 3307
-    volumes:
-      - /home/luisfeliphe/projetos/Simulador_IPCA/docker:/docker-entrypoint-initdb.d
-      - /home/luisfeliphe/projetos/Simulador_IPCA/docker/my.cnf:/etc/mysql/my.cnf
-    networks:
-      - app_net
-    ports:
-      - "3307:3306"
-
+      - openmetadata_network
+      
   mysql:
     container_name: openmetadata_mysql
     image: docker.getcollate.io/openmetadata/db:1.5.6
@@ -44,9 +25,9 @@ services:
     ports:
       - "3306:3306"
     volumes:
-     - mysql_data:/var/lib/mysql
+     - openmetadata_mysql_data:/var/lib/mysql
     networks:
-      - app_net
+      - openmetadata_network
     healthcheck:
       test: mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --silent --execute "use openmetadata_db"
       interval: 15s
@@ -61,7 +42,7 @@ services:
       - ES_JAVA_OPTS=-Xms1024m -Xmx1024m
       - xpack.security.enabled=false
     networks:
-      - app_net
+      - openmetadata_network
     ports:
       - "9200:9200"
       - "9300:9300"
@@ -122,6 +103,46 @@ services:
       OIDC_TENANT: ${OIDC_TENANT:-""}
       OIDC_MAX_CLOCK_SKEW: ${OIDC_MAX_CLOCK_SKEW:-""}
       OIDC_CUSTOM_PARAMS: ${OIDC_CUSTOM_PARAMS:-{}}
+      # For SAML Authentication
+      # SAML_DEBUG_MODE: ${SAML_DEBUG_MODE:-false}
+      # SAML_IDP_ENTITY_ID: ${SAML_IDP_ENTITY_ID:-""}
+      # SAML_IDP_SSO_LOGIN_URL: ${SAML_IDP_SSO_LOGIN_URL:-""}
+      # SAML_IDP_CERTIFICATE: ${SAML_IDP_CERTIFICATE:-""}
+      # SAML_AUTHORITY_URL: ${SAML_AUTHORITY_URL:-"http://localhost:8585/api/v1/saml/login"}
+      # SAML_IDP_NAME_ID: ${SAML_IDP_NAME_ID:-"urn:oasis:names:tc:SAML:2.0:nameid-format:emailAddress"}
+      # SAML_SP_ENTITY_ID: ${SAML_SP_ENTITY_ID:-"http://localhost:8585/api/v1/saml/metadata"}
+      # SAML_SP_ACS: ${SAML_SP_ACS:-"http://localhost:8585/api/v1/saml/acs"}
+      # SAML_SP_CERTIFICATE: ${SAML_SP_CERTIFICATE:-""}
+      # SAML_SP_CALLBACK: ${SAML_SP_CALLBACK:-"http://localhost:8585/saml/callback"}
+      # SAML_STRICT_MODE: ${SAML_STRICT_MODE:-false}
+      # SAML_SP_TOKEN_VALIDITY: ${SAML_SP_TOKEN_VALIDITY:-"3600"}
+      # SAML_SEND_ENCRYPTED_NAME_ID: ${SAML_SEND_ENCRYPTED_NAME_ID:-false}
+      # SAML_SEND_SIGNED_AUTH_REQUEST: ${SAML_SEND_SIGNED_AUTH_REQUEST:-false}
+      # SAML_SIGNED_SP_METADATA: ${SAML_SIGNED_SP_METADATA:-false}
+      # SAML_WANT_MESSAGE_SIGNED: ${SAML_WANT_MESSAGE_SIGNED:-false}
+      # SAML_WANT_ASSERTION_SIGNED: ${SAML_WANT_ASSERTION_SIGNED:-false}
+      # SAML_WANT_ASSERTION_ENCRYPTED: ${SAML_WANT_ASSERTION_ENCRYPTED:-false}
+      # SAML_WANT_NAME_ID_ENCRYPTED: ${SAML_WANT_NAME_ID_ENCRYPTED:-false}
+      # SAML_KEYSTORE_FILE_PATH: ${SAML_KEYSTORE_FILE_PATH:-""}
+      # SAML_KEYSTORE_ALIAS: ${SAML_KEYSTORE_ALIAS:-""}
+      # SAML_KEYSTORE_PASSWORD: ${SAML_KEYSTORE_PASSWORD:-""}
+      # For LDAP Authentication
+      # AUTHENTICATION_LDAP_HOST: ${AUTHENTICATION_LDAP_HOST:-}
+      # AUTHENTICATION_LDAP_PORT: ${AUTHENTICATION_LDAP_PORT:-}
+      # AUTHENTICATION_LOOKUP_ADMIN_DN: ${AUTHENTICATION_LOOKUP_ADMIN_DN:-""}
+      # AUTHENTICATION_LOOKUP_ADMIN_PWD: ${AUTHENTICATION_LOOKUP_ADMIN_PWD:-""}
+      # AUTHENTICATION_USER_LOOKUP_BASEDN: ${AUTHENTICATION_USER_LOOKUP_BASEDN:-""}
+      # AUTHENTICATION_USER_MAIL_ATTR: ${AUTHENTICATION_USER_MAIL_ATTR:-}
+      # AUTHENTICATION_LDAP_POOL_SIZE: ${AUTHENTICATION_LDAP_POOL_SIZE:-3}
+      # AUTHENTICATION_LDAP_SSL_ENABLED: ${AUTHENTICATION_LDAP_SSL_ENABLED:-}
+      # AUTHENTICATION_LDAP_TRUSTSTORE_TYPE: ${AUTHENTICATION_LDAP_TRUSTSTORE_TYPE:-TrustAll}
+      # AUTHENTICATION_LDAP_TRUSTSTORE_PATH: ${AUTHENTICATION_LDAP_TRUSTSTORE_PATH:-}
+      # AUTHENTICATION_LDAP_KEYSTORE_PASSWORD: ${AUTHENTICATION_LDAP_KEYSTORE_PASSWORD:-}
+      # AUTHENTICATION_LDAP_SSL_KEY_FORMAT: ${AUTHENTICATION_LDAP_SSL_KEY_FORMAT:-}
+      # AUTHENTICATION_LDAP_ALLOW_WILDCARDS: ${AUTHENTICATION_LDAP_ALLOW_WILDCARDS:-}
+      # AUTHENTICATION_LDAP_ALLOWED_HOSTNAMES: ${AUTHENTICATION_LDAP_ALLOWED_HOSTNAMES:-[]}
+      # AUTHENTICATION_LDAP_SSL_VERIFY_CERT_HOST: ${AUTHENTICATION_LDAP_SSL_VERIFY_CERT_HOST:-}
+      # AUTHENTICATION_LDAP_EXAMINE_VALIDITY_DATES: ${AUTHENTICATION_LDAP_EXAMINE_VALIDITY_DATES:-true}
 
       # JWT Configuration
       RSA_PUBLIC_KEY_FILE_PATH: ${RSA_PUBLIC_KEY_FILE_PATH:-"./conf/public_key.der"}
@@ -244,7 +265,7 @@ services:
       mysql:
         condition: service_healthy
     networks:
-      - app_net
+      - openmetadata_network
 
   openmetadata-server:
     container_name: openmetadata_server
@@ -412,7 +433,7 @@ services:
       execute-migrate-all:
         condition: service_completed_successfully
     networks:
-      - app_net
+      - openmetadata_network
     healthcheck:
       test: [ "CMD", "wget", "-q", "--spider",  "http://localhost:8586/healthcheck" ]
 
@@ -436,6 +457,16 @@ services:
       DB_SCHEME: ${AIRFLOW_DB_SCHEME:-mysql+pymysql}
       DB_USER: ${AIRFLOW_DB_USER:-airflow_user}
       DB_PASSWORD: ${AIRFLOW_DB_PASSWORD:-airflow_pass}
+      # extra connection-string properties for the database
+      # EXAMPLE 
+      # require SSL (only for Postgres)
+      # properties: "?sslmode=require"
+      DB_PROPERTIES: ${AIRFLOW_DB_PROPERTIES:-}
+      # To test the lineage backend
+      # AIRFLOW__LINEAGE__BACKEND: airflow_provider_openmetadata.lineage.backend.OpenMetadataLineageBackend
+      # AIRFLOW__LINEAGE__AIRFLOW_SERVICE_NAME: local_airflow
+      # AIRFLOW__LINEAGE__OPENMETADATA_API_ENDPOINT: http://openmetadata-server:8585/api
+      # AIRFLOW__LINEAGE__JWT_TOKEN: ...
     entrypoint: /bin/bash
     command:
       - "/opt/airflow/ingestion_dependency.sh"
@@ -444,17 +475,56 @@ services:
     ports:
       - "8080:8080"
     networks:
-      - app_net
+      - openmetadata_network
     volumes:
       - ingestion-volume-dag-airflow:/opt/airflow/dag_generated_configs
       - ingestion-volume-dags:/opt/airflow/dags
       - ingestion-volume-tmp:/tmp
 
-networks:
-  app_net:
-    ipam:
-      driver: default
-      config:
-        - subnet: "172.16.240.0/24"
+  # mysql-financeiro:
+  #   container_name: mysql-financeiro
+  #   image: mysql:8.0.32
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=password
+  #     - MYSQL_USER=admin
+  #     - MYSQL_PASSWORD=admin
+  #   ports:
+  #     - "3307:3306"      
+  #   volumes:
+  #     - ./src/mysql/init.sql:/docker-entrypoint-initdb.d/
+  #   networks:
+  #     - openmetadata_network
+  #   restart: "always"
 
-  
+  mariadb:
+    image: mariadb:11.5.2
+    container_name: mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_DATABASE: bacen_db
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+    ports:
+      - "3307:3306"
+    volumes:
+      - ../../src/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - openmetadata_network
+
+  consumer:
+    image: python:latest
+    container_name: consumer
+    depends_on:
+      - mariadb
+    volumes:
+      - ../../src/consumer:/app
+    working_dir: /app
+    command: >
+      sh -c "pip install --upgrade pip && pip install --no-cache-dir -r /app/requirements.txt &&
+        python consumer.py"
+    networks:
+      - openmetadata_network
+    
+networks:
+  openmetadata_network:
+    driver: bridge
