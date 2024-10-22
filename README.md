@@ -1,13 +1,26 @@
 # Simulador_IPCA
- - Financiamento IPCA/Inflação
-   - [Gestão Estratégica de Dados Corporativos](Gestão%20Estratégica%20de%20Dados%20Corporativos.pdf)
+- Financiamento IPCA/Inflação
+   - [Gestão Estratégica de Dados Corporativos](./src/streamlit/resource/Gestão%20Estrategica%20de%20Dados%20Corporativos.pdf)
+
+
 
 # Start projeto
 ```
 docker-compose up --build
 ```
-  - Acessar a url criada pelo ambiente:
-  - ![alt text](image-1.png)
+- OPENMETADATA
+  - http://0.0.0.0:8585/
+  - Username: admin@open-metadata.org
+  - Password: admin
+
+- AIRFLOW
+  - http://localhost:8080/
+  - Username: admin
+  - Password: admin
+
+- STREAMLIT
+  - http://0.0.0.0:8501/
+
 ## Implementação
  - 1- Baixar a base IPCA do BCB através da API
  - 2- Baixar a base IPCA do IBGE através da API
