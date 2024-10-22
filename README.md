@@ -2,8 +2,6 @@
 - Financiamento IPCA/Inflação
    - [Gestão Estratégica de Dados Corporativos](./src/streamlit/resource/Gestão%20Estrategica%20de%20Dados%20Corporativos.pdf)
 
-
-
 # Start projeto
 ```
 docker-compose up --build

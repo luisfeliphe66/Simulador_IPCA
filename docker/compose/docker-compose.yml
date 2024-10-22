@@ -481,21 +481,6 @@ services:
       - ingestion-volume-dags:/opt/airflow/dags
       - ingestion-volume-tmp:/tmp
 
-  # mysql-financeiro:
-  #   container_name: mysql-financeiro
-  #   image: mysql:8.0.32
-  #   environment:
-  #     - MYSQL_ROOT_PASSWORD=password
-  #     - MYSQL_USER=admin
-  #     - MYSQL_PASSWORD=admin
-  #   ports:
-  #     - "3307:3306"      
-  #   volumes:
-  #     - ./src/mysql/init.sql:/docker-entrypoint-initdb.d/
-  #   networks:
-  #     - openmetadata_network
-  #   restart: "always"
-
   mariadb:
     image: mariadb:11.5.2
     container_name: mariadb
