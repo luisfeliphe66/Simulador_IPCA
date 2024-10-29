@@ -1,13 +1,19 @@
 import requests
 import mariadb
 import json
+from datetime import datetime
 
 # Função para extrair dados da API do Banco Central
 def extrair_dados():
-    serie = "ExpectativasMercadoInflacao24Meses"
-    url = f"https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/{serie}?$skip=0&$orderby=Data%20desc&$format=json"
+    serie = "25352"
+    url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{serie}/dados?formato=json"
     response = requests.get(url)
     data = response.json()
+
+
+    # Exibe o conteúdo original de 'data' para ajudar na depuração
+    print(f"Conteúdo de data (inicial): {data}")
+
     return data
 
 # Função para carregar os dados no banco de dados MySQL
@@ -17,38 +23,23 @@ def carregar_dados(data):
         conn = mariadb.connect(
             host="mariadb",
             port=3306,
-            user="admin",
+            user="root",
             password="admin",
-            database="bacen_db"
+            database="bc_data"
         )
+
         cursor = conn.cursor()
         print("Conexão ao mariadb estabelecida com sucesso.")
 
         # # SQL para inserir dados
         sql = """
-        INSERT INTO indicador_economico (indicador, data, suavizada, media, mediana, desvio_padrao, minimo, maximo, numero_respondentes, base_calculo)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO taxa_juros (data, valor)
+        VALUES (%s, %s)
         """
 
-        # Verificar o tipo de dados
-        items = data.get("value")  # Acessar a lista dentro do dicionário
-        if isinstance(items, list):
-            for item in items:
-                if isinstance(item, dict):
-                    print(f"Processando item: {item}")
-                    valores = (
-                        item.get("Indicador"),
-                        item.get("Data"),
-                        item.get("Suavizada"),
-                        item.get("Media"),
-                        item.get("Mediana"),
-                        item.get("DesvioPadrao"),
-                        item.get("Minimo"),
-                        item.get("Maximo"),
-                        item.get("numeroRespondentes"),
-                        item.get("baseCalculo")
-                    )
-                    cursor.execute(sql, valores)
+        valores = [(converter_data(item["data"]), item["valor"]) for item in data]
+
+        cursor.executemany(sql, valores)
 
         # Confirmar a transação
         conn.commit()
@@ -61,6 +52,10 @@ def carregar_dados(data):
 
     except mariadb.Error as err:
         print(f"Erro: {err}")
+
+def converter_data(data_str):
+    """Converte a data do formato DD/MM/AAAA para AAAA-MM-DD."""
+    return datetime.strptime(data_str, "%d/%m/%Y").strftime("%Y-%m-%d")
 
 if __name__ == "__main__":
     dados = extrair_dados()

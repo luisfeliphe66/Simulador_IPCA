@@ -1,0 +1,239 @@
+#1. Simulador de Financiamento PJ
+    #Entrada do Usuário: O
+    #Cálculo de Valores:
+#2. Análise e Previsão da Taxa de Crédito (ICC)
+    #Origem dos Dados:
+    #Modelos de Previsão : ARIMA -SARIMA -Random Forest - Modelo de Regressão Linear:
+#3. Gráfico Combinado
+    #O gráfico mostra:
+
+
+### Simulador em Streamlit
+#- Valor a ser financiado.
+#- Prazo em meses.
+#- Taxa de juros mensal.
+
+import numpy as np
+import pandas as pd
+import requests
+import matplotlib.pyplot as plt
+import streamlit as st
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from sklearn import linear_model
+
+# ----------------------------  STREAMLIT ----------------------------
+
+# Função para calcular as parcelas mensais
+def calcular_parcela(valor_financiado, taxa_juros, prazo_meses):
+    return valor_financiado / prazo_meses if taxa_juros == 0 else (
+        valor_financiado * taxa_juros * (1 + taxa_juros) ** prazo_meses) / ((1 + taxa_juros) ** prazo_meses - 1)
+
+# Função para converter taxa de juros mensal para anual
+def calcular_taxa_anual(taxa_juros_mensal):
+    return (1 + taxa_juros_mensal) ** 12 - 1
+
+# Título da aplicação
+st.title('Simulador de Financiamento PJ')
+
+# Entradas do usuário
+valor_financiado = st.number_input('Valor a financiar (R$)', min_value=1000.0, step=1000.0)
+prazo_meses = st.number_input('Prazo (meses)', min_value=1, max_value=360, step=1)
+taxa_juros_mensal = st.number_input('Taxa de juros mensal (%)', min_value=0.0, step=0.1) / 100
+
+# Calculando a parcela mensal e a taxa anual
+if prazo_meses > 0 and valor_financiado > 0:
+    taxa_juros_anual = calcular_taxa_anual(taxa_juros_mensal)
+    parcela_mensal = calcular_parcela(valor_financiado, taxa_juros_mensal, prazo_meses)
+    valor_total_pago = parcela_mensal * prazo_meses
+    
+    # Exibindo os resultados
+    st.write(f"### Valor da parcela mensal: R$ {parcela_mensal:.2f}")
+    st.write(f"### Valor total dos juros: R$ {valor_total_pago - valor_financiado:.2f}")
+    st.write(f"### Valor total pago ao final: R$ {valor_total_pago:.2f}")
+    st.write(f"### Taxa de juros anual equivalente: {taxa_juros_anual * 100:.2f}%")
+    
+    # Gerando o gráfico do financiamento
+    meses = np.arange(1, prazo_meses + 1)
+    parcelas = np.full(prazo_meses, parcela_mensal)
+    valor_acumulado = np.cumsum(parcelas)
+
+# ----------------------------  CÓDIGO DO GRÁFICO ARIMA - SARIMA - Random Forest - Regressão Linear ----------------------------
+
+# 1. Definir o número da série
+serie = "25352"
+link = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{serie}/dados?formato=json"
+
+# 2. Buscar a série de dados
+try:
+    requisicao = requests.get(link)
+    requisicao.raise_for_status()  # Lança um erro para status codes não 200
+    informacoes = requisicao.json()
+    
+    # 3. Convertendo os dados JSON para um DataFrame do Pandas
+    tabela = pd.DataFrame(informacoes)
+    tabela['data'] = pd.to_datetime(tabela['data'], format='%d/%m/%Y')
+    tabela.set_index('data', inplace=True)
+    tabela['valor'] = tabela['valor'].astype(float)
+
+    # ----------------------------  ARIMA  -----------------------------------
+    # 6. Aplicando o ARIMA
+    arima_model = ARIMA(tabela['valor'], order=(5, 1, 0))
+    arima_model_fit = arima_model.fit()
+    arima_forecast = arima_model_fit.forecast(steps=60)
+
+    # ----------------------------  SARIMA  ----------------------------------
+    # 8. Aplicando SARIMA com sazonalidade anual
+    sarima_model = SARIMAX(tabela['valor'], order=(1, 1, 1), seasonal_order=(1, 1, 1, 12))
+    sarima_model_fit = sarima_model.fit()
+    sarima_forecast = sarima_model_fit.get_forecast(steps=60).predicted_mean
+
+    # ----------------------------  Random Forest  ----------------------------
+    # 10. Convertendo as datas do índice para números ordinais
+    tabela['data_ordinal'] = tabela.index.map(pd.Timestamp.toordinal)
+    X = tabela[['data_ordinal']]
+    y = tabela['valor']
+
+    # 12. Dividir em treino e teste
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+
+    # 13. Treinando o modelo Random Forest
+    rf_model = RandomForestRegressor(n_estimators=100)
+    rf_model.fit(X_train, y_train)
+
+    # 14. Previsão para os próximos 60 meses
+    future_dates = pd.date_range(tabela.index[-1], periods=60, freq='M')
+    future_ordinal = future_dates.map(pd.Timestamp.toordinal).values.reshape(-1, 1)
+    rf_forecast = rf_model.predict(future_ordinal)
+
+    # ----------------------------  Regressão Linear  ----------------------------
+    # 15. Treinando o modelo de regressão linear
+    linear_model_reg = linear_model.LinearRegression()
+    linear_model_reg.fit(X_train, y_train)
+    linear_forecast = linear_model_reg.predict(future_ordinal)
+
+    # ----------------------------  Criando Gráfico Combinado  ----------------------------
+    fig, ax1 = plt.subplots(figsize=(15, 8))
+
+    # Plotar o histórico dos dados reais da taxa ICC
+    ax1.plot(tabela.index, tabela['valor'], label='Histórico ICC', color='green')
+
+    # Previsões dos modelos da taxa ICC
+    ax1.plot(future_dates, rf_forecast, label='Previsão Random Forest', color='purple', linestyle='--')
+    ax1.plot(future_dates, linear_forecast, label='Previsão Regressão Linear', color='brown', linestyle='--')
+    ax1.plot(future_dates, arima_forecast, label='Previsão ARIMA', color='red', linestyle='--')
+    ax1.plot(future_dates, sarima_forecast, label='Previsão SARIMA', color='orange', linestyle='--')
+
+    # Anotação dos valores previstos
+    for forecast, color, label in zip([rf_forecast, linear_forecast, arima_forecast, sarima_forecast],
+                                       ['purple', 'brown', 'red', 'orange'],
+                                       ['Previsão Random Forest', 'Previsão Regressão Linear', 'Previsão ARIMA', 'Previsão SARIMA']):
+        predicted_value = forecast[-1]
+        ax1.text(future_dates[-1], predicted_value, f'{predicted_value:.2f}', color=color, fontsize=13, ha='left', va='center')
+
+    # Plotar a taxa de juros anual como uma linha constante
+    if taxa_juros_anual > 0:  # Verifique se a taxa de juros anual é maior que zero
+        ax1.plot(future_dates, [taxa_juros_anual * 100] * len(future_dates), label='Taxa de Juros Anual', color='blue')
+
+    # Configurações do eixo principal (ICC)
+    ax1.set_xlabel('Ano')
+    ax1.set_ylabel('25352 - Índice de Custo do Crédito - PJ / Taxa de Juros Anual (%)')
+    #ax1.legend(loc='upper left')
+    ax1.legend(loc='lower left')
+    ax1.grid(True)
+
+    # Adicionar título
+    plt.title('Previsão da Taxa ICC, Taxa de Juros Anual e Evolução do Financiamento')
+
+    # Mostrar gráfico no Streamlit
+    st.pyplot(fig)
+    
+    
+    # ----------------------------  Gráfico Combinado 2 ----------------------------
+    fig, ax = plt.subplots(figsize=(15, 8))
+
+    # Plotar as previsões
+    ax.plot(future_dates, rf_forecast, label='Previsão Random Forest', color='purple', linestyle='--')
+    ax.plot(future_dates, linear_forecast, label='Previsão Regressão Linear', color='brown', linestyle='--')
+    ax.plot(future_dates, arima_forecast, label='Previsão ARIMA', color='red', linestyle='--')
+    ax.plot(future_dates, sarima_forecast, label='Previsão SARIMA', color='orange', linestyle='--')
+
+    # Linha da taxa de juros anual
+    if taxa_juros_anual > 0:
+        # Adicionando pontos para representar a taxa de juros ao longo do tempo
+        ax.plot(future_dates, [taxa_juros_anual * 100] * len(future_dates), 
+                color='blue', linewidth=2, linestyle='-', label='Taxa de Juros Anual (Valor Constante)')
+
+    # Sombreado para comparação das previsões
+    for forecast, color in zip([rf_forecast, linear_forecast, arima_forecast, sarima_forecast],
+                            ['purple', 'brown', 'red', 'orange']):
+        ax.fill_between(future_dates, taxa_juros_anual * 100, forecast, color=color, alpha=0.1)
+
+    # Anotação dos valores previstos
+    for forecast, color, label in zip([rf_forecast, linear_forecast, arima_forecast, sarima_forecast],
+                                    ['purple', 'brown', 'red', 'orange'],
+                                    ['Previsão Random Forest', 'Previsão Regressão Linear', 'Previsão ARIMA', 'Previsão SARIMA']):
+        predicted_value = forecast[-1]  # Último valor da previsão
+        ax.text(future_dates[-1], predicted_value, f'{predicted_value:.2f}', color=color, fontsize=13, ha='left', va='center')
+
+    ax.set_xlabel('Ano')
+    ax.set_ylabel('25352 - Índice de Custo do Crédito - PJ / Taxa de Juros Anual (%)')
+    ax.legend(loc='lower left')
+    ax.grid(True)
+    plt.title('Comparação das taxas - Previsões 60 meses')
+
+    st.pyplot(fig)
+
+
+
+# ----------------------------  Gráfico Combinado 3 ----------------------------
+    fig, ax = plt.subplots(figsize=(15, 8))
+
+    # Plotar as previsões
+    ax.plot(future_dates, rf_forecast, label='Previsão Random Forest', color='purple', linestyle='--')
+    ax.plot(future_dates, linear_forecast, label='Previsão Regressão Linear', color='brown', linestyle='--')
+    ax.plot(future_dates, arima_forecast, label='Previsão ARIMA', color='red', linestyle='--')
+    ax.plot(future_dates, sarima_forecast, label='Previsão SARIMA', color='orange', linestyle='--')
+
+    # Linha da taxa de juros anual
+    if taxa_juros_anual > 0:
+
+        # Adicionando pontos para representar a taxa de juros ao longo do tempo
+        ax.plot(future_dates, [taxa_juros_anual * 100] * len(future_dates), 
+                color='blue', linewidth=2, linestyle='-', label='Taxa de Juros Anual (Valor Constante)')
+
+    # Sombreado para comparação das previsões
+    for forecast, color in zip([rf_forecast, linear_forecast, arima_forecast, sarima_forecast],
+                            ['purple', 'brown', 'red', 'orange']):
+        ax.fill_between(future_dates, taxa_juros_anual * 100, forecast, color=color, alpha=0.1)
+
+    # Anotação dos valores previstos por ano
+    for i, (forecast, color, label) in enumerate(zip(
+        [rf_forecast, linear_forecast, arima_forecast, sarima_forecast],
+        ['purple', 'brown', 'red', 'orange'],
+        ['Previsão Random Forest', 'Previsão Regressão Linear', 'Previsão ARIMA', 'Previsão SARIMA'])):
+        
+        # Pega os índices onde a data é o final do ano
+        year_end_indices = [j for j in range(len(future_dates)) if future_dates[j].month == 12 and future_dates[j].day == 31]
+
+        # Adiciona a anotação para cada final de ano
+        for idx in year_end_indices:
+            predicted_value = forecast[idx]
+            ax.text(future_dates[idx], predicted_value, f'{predicted_value:.2f}', color=color, fontsize=13, ha='left', va='center')
+
+
+    ax.set_xlabel('Ano')
+    ax.set_ylabel('25352 - Índice de Custo do Crédito - PJ / Taxa de Juros Anual (%)')
+    ax.legend(loc='lower left')
+    ax.grid(True)
+    plt.title('Comparação das taxas - Previsões 60 meses')
+
+    st.pyplot(fig)
+
+
+except requests.exceptions.RequestException as e:
+    st.write("Erro ao conectar à API:", e)
+except Exception as e:
+    st.write("Ocorreu um erro:", e)

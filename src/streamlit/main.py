@@ -1,70 +1,62 @@
-import streamlit as st
 import pandas as pd
-from pdf_export import gerar_pdf  # Importa a função de geração de PDF
+import numpy as np
+import matplotlib.pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
 
-# Carregar dados do CSV
-data = pd.read_csv('data/base.csv')
+# Carregar dados do arquivo CSV
+df = pd.read_csv("../src/transfer/resultado_consulta.csv")
+df['data'] = pd.to_datetime(df['data'], format='%d/%m/%Y')
+df.set_index('data', inplace=True)
 
-# Função para calcular o financiamento
-def calcular_financiamento(taxa_juros, meses, valor_financiado):
-    valor_total = valor_financiado * (1 + taxa_juros) ** meses
-    prestacao = valor_total / meses
-    juros_total = valor_total - valor_financiado
-    return valor_total, prestacao, juros_total
+# Garantir que a coluna 'valor' seja numérica
+df['valor'] = df['valor'].astype(float)
 
-# Título da página
-st.title("Financiamento com Prestações Fixas")
+# ----------------------------  ARIMA  -----------------------------------
+arima_model = ARIMA(df['valor'], order=(5, 1, 0))
+arima_model_fit = arima_model.fit()
+arima_forecast = arima_model_fit.forecast(steps=60)
 
-# Inicializar variáveis de estado
-if 'resultado' not in st.session_state:
-    st.session_state.resultado = None
-if 'total' not in st.session_state:
-    st.session_state.total = None
-if 'prestacao' not in st.session_state:
-    st.session_state.prestacao = None
-if 'juros' not in st.session_state:
-    st.session_state.juros = None
+# ----------------------------  SARIMA  ----------------------------------
+sarima_model = SARIMAX(df['valor'], order=(1, 1, 1), seasonal_order=(1, 1, 1, 12))
+sarima_model_fit = sarima_model.fit()
+sarima_forecast = sarima_model_fit.get_forecast(steps=60).predicted_mean
 
-# Campos de entrada
-meses = st.number_input("Número de meses:", min_value=1, max_value=120)
-taxa_juros = st.number_input("Taxa de juros mensal (%):", min_value=0.0, max_value=100.0) / 100
-valor_financiado = st.number_input("Valor financiado (sem entrada):", min_value=0.0)
+# ----------------------------  Random Forest  ----------------------------
+df['data_ordinal'] = df.index.map(pd.Timestamp.toordinal)
+X = df[['data_ordinal']]
+y = df['valor']
 
-# Layout para os botões
-col1, col2, col3 = st.columns(3)  # Cria três colunas
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
+rf_model = RandomForestRegressor(n_estimators=100)
+rf_model.fit(X_train, y_train)
 
-# Botão calcular
-with col1:
-    if st.button("Calcular"):
-        total, prestacao, juros = calcular_financiamento(taxa_juros, meses, valor_financiado)
-        st.session_state.resultado = f"Total do financiamento Valor: {total:.2f} , parcelas de : {prestacao:.2f} reais, sendo R$: {juros:.2f} de juros."
-        
-        # Armazenar valores no estado da sessão
-        st.session_state.total = total
-        st.session_state.prestacao = prestacao
-        st.session_state.juros = juros
-        
-        st.success(st.session_state.resultado)
+future_dates = pd.date_range(df.index[-1], periods=60, freq='M')
+future_ordinal = future_dates.map(pd.Timestamp.toordinal).values.reshape(-1, 1)
+rf_forecast = rf_model.predict(future_ordinal)
 
-# Botão limpar
-with col2:
-    if st.button("Limpar"):
-        # Resetar os valores no estado da sessão
-        st.session_state.resultado = None
-        st.session_state.total = None
-        st.session_state.prestacao = None
-        st.session_state.juros = None
-        
-        # Limpar campos de entrada
-        st.session_state.meses = 1
-        st.session_state.taxa_juros = 0.0
-        st.session_state.valor_financiado = 0.0
+# ----------------------------  Regressão Linear  ----------------------------
+linear_model_reg = LinearRegression()
+linear_model_reg.fit(X_train, y_train)
+linear_forecast = linear_model_reg.predict(future_ordinal)
 
-# Botão imprimir
-with col3:
-    if st.button("Imprimir"):
-        if st.session_state.resultado:
-            gerar_pdf(st.session_state.total, st.session_state.prestacao, st.session_state.juros)
-        else:
-            st.warning("Por favor, calcule o financiamento antes de imprimir.")
+# ----------------------------  Gráfico Combinado  ----------------------------
+plt.figure(figsize=(15, 8))
+
+plt.plot(df.index, df['valor'], label='Histórico', color='green')
+plt.plot(future_dates, rf_forecast, label='Previsão Random Forest', color='purple', linestyle='--')
+plt.plot(future_dates, linear_forecast, label='Previsão Regressão Linear', color='brown', linestyle='--')
+plt.plot(future_dates, arima_forecast, label='Previsão ARIMA', color='red', linestyle='--')
+plt.plot(future_dates, sarima_forecast, label='Previsão SARIMA', color='orange', linestyle='--')
+
+plt.xlabel('Ano')
+plt.ylabel('Valor')
+plt.legend(loc='lower left')
+plt.grid(True)
+plt.title('Previsão com ARIMA, SARIMA, Random Forest e Regressão Linear')
+
+plt.show()
